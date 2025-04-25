@@ -1,51 +1,137 @@
-# Introduction to GitHub
+<!DOCTYPE html>
+<html>
+<head>
+  <title>UNIOSUN FBAS Voting</title>
 
-_Get started using GitHub in less than an hour._
+  <!-- 1) Firebase Compat Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-## Welcome
+  <!-- 2) Chart.js Script -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-People use GitHub to build some of the most advanced technologies in the world. Whether you’re visualizing data or building a new game, there’s a whole community and set of tools on GitHub that can help you do it even better. GitHub Skills’ “Introduction to GitHub” exercise guides you through everything you need to start contributing in less than an hour.
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #eef;
+      padding: 20px;
+      text-align: center;
+    }
+    .candidate {
+      border: 1px solid #ccc;
+      padding: 20px;
+      margin: 15px auto;
+      border-radius: 8px;
+      background: #fff;
+      max-width: 320px;
+    }
+    button {
+      background: #2E8B57;
+      color: #fff;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .count {
+      font-size: 18px;
+      margin-top: 10px;
+    }
+    #message {
+      color: green;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+    canvas {
+      margin: 30px auto 0;
+      background: #fff;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #ccc;
+      max-width: 500px;
+    }
+  </style>
+</head>
+<body>
 
-- **Who is this for**: New developers, new GitHub users, and students.
-- **What you'll learn**: We'll introduce repositories, branches, commits, and pull requests.
-- **What you'll build**: We'll make a short Markdown file you can use as your [profile README](https://docs.github.com/account-and-profile/setting-up-and-managing-your-github-profile/customizing-your-profile/managing-your-profile-readme).
-- **Prerequisites**: None. This exercise is a great introduction for your first day on GitHub.
-- **How long**: This exercise takes less than one hour to complete.
+  <h1>UNIOSUN FBAS Voting</h1>
+  <h2>Faculty of Basic and Applied Sciences</h2>
 
-In this exercise, you will:
+  <div class="candidate">
+    <h2>Candidate A</h2>
+    <button onclick="vote('CandidateA')">Vote</button>
+    <p class="count" id="CandidateA-count">Votes: 0</p>
+  </div>
 
-1. Create a branch
-2. Commit a file
-3. Open a pull request
-4. Merge your pull request
+  <div class="candidate">
+    <h2>Candidate B</h2>
+    <button onclick="vote('CandidateB')">Vote</button>
+    <p class="count" id="CandidateB-count">Votes: 0</p>
+  </div>
 
-### How to start this exercise
+  <p id="message"></p>
 
-1. Right-click **Copy Exercise** and open the link in a new tab.
+  <canvas id="voteChart" width="400" height="250"></canvas>
 
-   <a id="copy-exercise" href="https://github.com/new?template_owner=skills&template_name=introduction-to-github&owner=%40me&name=skills-introduction-to-github&description=Exercise:+Introduction+to+GitHub&visibility=public">
-      <img src="https://img.shields.io/badge/📠_Copy_Exercise-008000" height="25pt"/>
-   </a>
+  <script>
+    // --- Initialize Firebase (compat) ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBVQ7aH7cogF7AWLaSHNzRrvFl3AgAfxjQ",
+      authDomain: "uniosun-voting-poll.firebaseapp.com",
+      databaseURL: "https://uniosun-voting-poll-default-rtdb.firebaseio.com",
+      projectId: "uniosun-voting-poll",
+      storageBucket: "uniosun-voting-poll.firebasestorage.app",
+      messagingSenderId: "249237157002",
+      appId: "1:249237157002:web:db3df016ae66a697b1e973"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-2. In the new tab, most of the prompts will automatically fill in for you.
-   - For owner, choose your personal account or an organization to host the repository.
-   - We recommend creating a public repository, as private repositories will [use Actions minutes](https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions).
-   - Scroll down and click the **Create repository** button at the bottom of the form.
+    // --- Voting function ---
+    function vote(candidate) {
+      if (localStorage.getItem("voted")) {
+        document.getElementById("message").textContent = "You have already voted!";
+        return;
+      }
+      const voteRef = db.ref("votes/" + candidate);
+      voteRef.transaction(current => (current || 0) + 1);
+      localStorage.setItem("voted", "true");
+      document.getElementById("message").textContent = `Thank you for voting for ${candidate}!`;
+    }
+    window.vote = vote;  // expose to onclick
 
-3. After your new repository is created, wait about 20 seconds for the exercise to be prepared and buttons updated. You will continue working from your copy of the exercise.
-   - The **Copy Exercise** button will deactivate, changing to gray.
-   - The **Start Exercise** button will activate, changing to green.
-   - You will likely need to refresh the page.
+    // --- Set up Chart.js bar chart ---
+    const ctx = document.getElementById("voteChart").getContext("2d");
+    const voteChart = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: ["Candidate A", "Candidate B"],
+        datasets: [{
+          label: "Votes",
+          data: [0, 0],
+          backgroundColor: ["#2E8B57", "#4682B4"]
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, precision: 0 } }
+      }
+    });
 
-4. Click **Start Exercise**. Follow the step-by-step instructions and feedback will be provided as you progress.
+    // --- Subscribe to realtime updates ---
+    function updateCounts() {
+      ["CandidateA", "CandidateB"].forEach((cand, idx) => {
+        db.ref("votes/" + cand).on("value", snap => {
+          const count = snap.val() || 0;
+          document.getElementById(`${cand}-count`).textContent = `Votes: ${count}`;
+          voteChart.data.datasets[0].data[idx] = count;
+          voteChart.update();
+        });
+      });
+    }
+    updateCounts();
+  </script>
 
-   <a id="start-exercise">
-      <img src="https://img.shields.io/badge/🚀_Start_Exercise-AAA" height="25pt"/>
-   </a>
-
-> [!IMPORTANT]
-> The **Start Exercise** button will activate after copying the repository. You will probably need to refresh the page.
-
----
-
-&copy; 2025 GitHub &bull; [Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md) &bull; [MIT License](https://gh.io/mit)
+</body>
+</html>
